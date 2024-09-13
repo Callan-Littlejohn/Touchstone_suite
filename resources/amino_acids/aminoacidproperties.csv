@@ -1,0 +1,21 @@
+unit,mass,name,polarity,pka,size,class
+A,71.03711378,Alanine,Non-Polar,2.34,8.86,Aliphatic
+R,156.101111,Arginine,Polar,2.17,17.34,Basic
+N,114.0429274,Asparagine,Polar,2.02,11.41,Amide
+D,115.026943,Aspartic Acid,Polar,1.88,11.11,Acidic
+C,103.009185,Cysteine,Non-Polar,1.96,10.85,Sulfur-Containing
+E,129.0425931,Glutamic Acid,Polar,2.19,13.84,Acidic
+Q,128.0585775,Glutamine,Polar,2.17,14.38,Amide
+G,57.02146372,Glycine,Non-Polar,2.34,6.01,Aliphatic
+H,137.0589118,Histidine,Polar,1.82,15.32,Basic
+I,113.084064,Isoleucine,Non-Polar,2.36,16.67,Aliphatic
+L,113.084064,Leucine,Non-Polar,2.36,16.67,Aliphatic
+K,128.094963,Lysine,Polar,2.18,16.86,Basic
+M,131.0404851,Methionine,Non-Polar,2.28,16.29,Sulfur-Containing
+F,147.0684139,Phenylalanine,Non-Polar,1.83,18.99,Aromatic
+P,97.05276384,Proline,Non-Polar,1.99,11.27,Aliphatic
+S,87.0320284,Serine,Polar,2.21,8.9,Hydroxyl
+T,101.0476785,Threonine,Polar,2.09,11.61,Hydroxyl
+W,186.0793129,Tryptophan,Non-Polar,2.83,22.78,Aromatic
+Y,163.0633285,Tyrosine,Polar,2.2,19.36,Aromatic
+V,99.06841391,Valine,Non-Polar,2.32,14,Aliphatic
