@@ -29,6 +29,9 @@ import matplotlib.pyplot as plot
 import configparser
 import matplotlib
 import scipy.signal
+import urqrdibe
+#import curqrd
+import pywt
 
 #universal constants
 da=1.66054e-27
@@ -47,14 +50,18 @@ class d2spectrum(): # this is the main class used to perform 2DMS processing and
         paramfile=filename+"\\"+paramfile+"\\apexAcquisition.method" #get method file
         self.params=read_param(paramfile) # get parameters
     
-    def process2d(self,L_20=0,no_zerofillsx=1 ,no_zerofillsy=1,apodisation="Kaiser",beautify=False):
+    def process2d(self,L_20=0,no_zerofillsx=1 ,no_zerofillsy=1,apodisation="Kaiser",beautify=False,urqrdrank=0):
         #importing data
+        sgdenoise=True
+        summedspecies=False
+        wdenoise=False
+        #urqrd=False
         beautification_array=[]
         t0=time.time() # 0 time
         if L_20==0: #default
             L_20=int(self.params["L_20"]) #kind of hacky way of allowing easier cutting
         serpath=os.path.join(self.filename,"ser") #the transients are located in the ser file
-        data=np.asarray(import_data(serpath,L_20,int(self.params["TD"])),dtype=np.longdouble) # keeping as an np array makes life much easier (no need to transpose)
+        data=np.asarray(import_data(serpath,L_20,int(self.params["TD"])),dtype=np.double) # keeping as an np array makes life much easier (no need to transpose)
         t1=time.time() #import done time
         print("import done:",t1-t0)
         
@@ -80,6 +87,26 @@ class d2spectrum(): # this is the main class used to perform 2DMS processing and
         print("first ft complete:",t2-t0)
         for i in range(len(data[0])): #process y dimension
             x=data[:,i]*afuncy #apodise        operating on one slice at a time cuts down ram usage, operating on columns rather than transposing cuts down time and ram
+            if sgdenoise==True:
+                x=scipy.signal.savgol_filter(x,21,3 )
+            if summedspecies==True:
+                if i==0:
+                    x=data[:,i]*afuncy
+                elif i==len(data[0])-1:
+                    x=data[:,i]*afuncy
+                else:
+                    x1=np.divide(data[:,i-1],3)
+                    x2=data[:,i]
+                    x3=np.divide(data[:,i+1],3)
+                    x=np.divide(np.sum([x1,x2,x3],axis=0),3)*afuncy
+                    # x=np.add(x1,np.add(x2,x3))*afuncy
+                    #x=np.sum(data[:,i-1:i+1],axis=0)*afuncy
+            if urqrdrank!=0:
+                x=urqrdibe.urqrd(x,urqrdrank,1).data
+            if wdenoise==True:
+                x=wavelet_denoise(x,level=5,sigma=0.5)
+                
+                    
             x=zerofilling(x,no_zerofillsy) # zerofill
             x=np.abs(np.fft.fft(x)) # ft
             x=x[:len(data[:,i])]
@@ -291,3 +318,27 @@ def getbinnedspectrum(mz,intensity,xaxis):
     #mz=np.asarray(mz)
     #x=mz.reshape(-1,m).sum(axis=1)
     return y
+def wavelet_denoise(signal, wavelet='db4', level=5, sigma=0.1):
+    """
+    Apply wavelet denoising to a signal.
+    
+    Parameters:
+    signal (array): The input signal to denoise.
+    wavelet (str): The wavelet to use for decomposition (default: 'db4').
+    level (int): The decomposition level (default: 5).
+    sigma (float): The noise standard deviation for thresholding (default: 0.1).
+    
+    Returns:
+    array: The denoised signal.
+    """
+    # Wavelet decomposition
+    coeffs = pywt.wavedec(signal, wavelet, level=level)
+    
+    # Threshold calculation
+    threshold = sigma * np.sqrt(2 * np.log(len(signal)))
+    
+    # Apply thresholding
+    new_coeffs = [coeffs[0]] + [pywt.threshold(c, threshold, mode='soft') for c in coeffs[1:]]
+    
+    # Reconstruct the denoised signal
+    return pywt.waverec(new_coeffs, wavelet)

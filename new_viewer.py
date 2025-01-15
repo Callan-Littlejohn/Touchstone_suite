@@ -29,13 +29,17 @@ import configparser
 import csv
 import os
 import scipy.optimize
+import scipy.signal
 from scipy.spatial.distance import cdist
+import struct
 
 class gui():
     def __init__(self):
         self.user_preferences={"bg":"","axes":"mz"}
         self.axes=self.user_preferences["axes"]
         self.figsize=(10,10)
+        self.last_contour_click_y=0
+        self.last_contour_click_x=0
         self.make_mainscreen()
     
     def make_mainscreen(self):
@@ -57,16 +61,25 @@ class gui():
         ## icons ##
         openpic=tk.PhotoImage(file="resources/pictures/newopenfile.png")
         openlabel=tk.Label(image=openpic)
-        openbutton=tk.Button(self.mainscreen,image=openpic,command=self.open_file).grid(row=0,column=0)
+        openbutton=tk.Button(self.mainscreen,image=openpic,command=self.open_file).grid(row=0,column=0,sticky="NSEW")
         savepic=tk.PhotoImage(file="resources/pictures/newsavefile.png")
         savelabel=tk.Label(image=savepic)
-        savebutton=tk.Button(self.mainscreen,image=savepic).grid(row=0,column=1)
+        savebutton=tk.Button(self.mainscreen,image=savepic,command=self.save_file).grid(row=0,column=1,sticky="NSEW")
         axespic=tk.PhotoImage(file="resources/pictures/axesicon.png")
         axeslabel=tk.Label(image=axespic)
-        axesbutton=tk.Button(self.mainscreen,image=axespic).grid(row=0,column=2)
+        axesbutton=tk.Button(self.mainscreen,image=axespic).grid(row=0,column=2,sticky="NSEW")
         peakpic=tk.PhotoImage(file="resources/pictures/pickpeakicon.png")
         peaklabel=tk.Label(image=peakpic)
-        peakbutton=tk.Button(self.mainscreen,image=peakpic).grid(row=0,column=3)
+        peakbutton=tk.Button(self.mainscreen,image=peakpic).grid(row=0,column=3,sticky="NSEW")
+        remridpic=tk.PhotoImage(file="resources/pictures/removeridges.png")
+        remridlabel=tk.Label(image=remridpic)
+        remridbutton=tk.Button(self.mainscreen, image=remridpic,command=self.beautification).grid(row=0,column=4,sticky="NSEW")
+        calpic=tk.PhotoImage(file="resources/pictures/callibration.png")
+        callabel=tk.Label(image=calpic)
+        calbutton=tk.Button(self.mainscreen, image=calpic).grid(row=0,column=5,sticky="NSEW")
+        setpic=tk.PhotoImage(file="resources/pictures/settings.png")
+        setlabel=tk.Label(image=setpic)
+        setbutton=tk.Button(self.mainscreen, image=setpic,command=self.save_binary).grid(row=0,column=6,sticky="NSEW")
         
         autocorpic=tk.PhotoImage(file="resources/pictures/autocor_icon.png")
         autocorlabel=tk.Label(image=autocorpic)
@@ -78,7 +91,8 @@ class gui():
         
         vertpic=tk.PhotoImage(file="resources/pictures/vertical_extract.png")
         vertlabel=tk.Label(image=vertpic)
-        vertbutton=tk.Button(self.mainscreen,image=vertpic).grid(row=0,column=17)
+        vertbutton=tk.Button(self.mainscreen,image=vertpic,command=self.show_vertical).grid(row=0,column=17)
+        
         self.lineentry=ttk.Entry(self.mainscreen)
         self.lineentry.grid(row=0,column=18,sticky="NSEW")
         self.lineentry.insert(0,"653.4")
@@ -206,6 +220,16 @@ class gui():
             configset.write(f) #write params ths is a good sanity check
         print("saved")
     
+    def save_binary(self):
+        dirname=tk.filedialog.asksaveasfilename() # ask for file
+        filename=dirname+".metal"
+        with open(filename,"wb") as f:
+            for i in self.data:
+                for j in i:
+                    bd=struct.pack("d",j)
+                    f.write(bd)
+        print("done")
+    
     def on_spectrum_canvas_click(self, event):
         if event.inaxes:
             # Get the click coordinates
@@ -215,10 +239,21 @@ class gui():
             graph_x, graph_y = event.xdata, event.ydata
             # Get the nearest data point from the graph
             #closest_index = np.argmin(np.abs(self.x - graph_x))
-            closest_index=np.argmin(np.abs(np.transpose(self.d1peaks)[0]-graph_x))
-            closest_peak = self.d1peaks[closest_index]
-            closest_data_x=closest_peak[0]
-            closest_data_y=1.1*closest_peak[1]
+            # closest_index=np.argmin(np.abs(np.transpose(self.d1peaks)[0]-graph_x))
+            # closest_peak = self.d1peaks[closest_index]
+            # closest_data_x=closest_peak[0]
+            # closest_data_y=1.1*closest_peak[1]
+            graph_y=(100*graph_y)/max(self.y)
+            y=np.multiply(np.divide(self.y,max(self.y)),100)
+            print(graph_x)
+            #print(self.x,self.y)
+            xmx=np.abs(np.subtract(self.x,graph_x))
+            yxy=np.abs(np.subtract(y,graph_y))
+            d=np.sqrt(np.add(np.power(xmx,2),np.power(yxy,2)))
+            closestind=np.argmin(d)
+            print(closestind)
+            closest_data_x,closest_data_y=self.x[closestind],self.y[closestind]
+            
             #self.last_spectrum_click=closest_index
             if hasattr(self,"mark"):
                 if self.mark==0:
@@ -281,7 +316,18 @@ class gui():
         y=self.data[indextoshow]
         self.update_spectrum(x,y)
         
+    def show_vertical(self):
+        mzextract=float(self.lineentry.get())
+        if mzextract==self.contoury[self.last_contour_click_x]:
+            indextoshow=self.last_contour_click_x
+        else:
+            indextoshow=(np.abs(np.asarray(self.fragmentaxis)-float(self.lineentry.get()))).argmin()-1
+        x=self.precursoraxis
+        y=self.data[:,indextoshow]
+        self.update_spectrum(x,y)        
+        
     def update_spectrum(self,x,y):
+        self.x,self.y=x,y
         for widget in self.spectrumtab.winfo_children():
             widget.destroy()
         peaksd=(peak_picker_guassian1d_wholespec([x[10:-10],y[10:-10]]))
@@ -308,7 +354,45 @@ class gui():
         self.spectrumtoolbar=NavigationToolbar2Tk(self.spectrumcanvas,self.spectrumtab)
         self.spectrumcanvas.get_tk_widget().pack(fill=tk.BOTH,expand=True)
         self.spectrumcanvas.mpl_connect("button_press_event", self.on_spectrum_canvas_click)
-
+    
+    def beautification(self):
+        noises=[]
+        for i in range(len(self.data[1])):
+            noises.append(findnoise(self.data[:,i]))
+            if i%10000==0:
+              print(i)  
+        print(noises)
+        maxy=0
+        avenoise=np.mean(noises)
+        noises=np.divide(noises,avenoise)
+        for i in range(len(self.data[1])):
+            self.data[:,i]=np.power(np.divide(self.data[:,i],noises[i]),3)
+            if max(self.data[:,i]>maxy):
+                maxy=max(self.data[:,i])
+        for widget in self.contourtab.winfo_children():
+            widget.destroy()
+        self.contourfig=Figure(figsize=self.figsize)
+        self.axcontour=self.contourfig.add_subplot(111)
+        contourdata=np.where(self.data>maxy/100)
+        contourdata2 = (contourdata[0][self.data[contourdata] > 10], contourdata[1][self.data[contourdata] > 10])
+        contoury=[self.precursoraxis[z] for z in contourdata2[0]]
+        contourx=[self.fragmentaxis[z] for z in contourdata2[1]]
+        contourz=self.data[contourdata2]
+        cmin=min(contourz)
+        cmax=max(contourz)
+        contour = self.axcontour.scatter(contourx, contoury, c=contourz, cmap='plasma', s=np.divide(contourz,max(contourz)),norm=matplotlib.colors.LogNorm(vmin=cmin, vmax=cmax)) # Exchanging the contour plot for the scatter plot saves on time and processing power, this idea was taken from the PINK software produced by Anna Cordiner and all credit exists there
+        self.contourx,self.contoury=self.fragmentaxis,self.precursoraxis
+        self.axcontour.set_xlim([min(self.fragmentaxis[1:]),2000])
+        self.axcontour.set_ylim([min(self.precursoraxis[1:]),2000])
+        self.contourcanvas=FigureCanvasTkAgg(self.contourfig,master=self.contourtab)
+        self.contourcanvas.get_tk_widget().pack(fill=tk.BOTH,expand=True)
+        self.contourtoolbaer=NavigationToolbar2Tk(self.contourcanvas,self.contourtab)
+        self.contourcanvas.get_tk_widget().pack(fill=tk.BOTH,expand=True)
+        self.contourcanvas.mpl_connect("button_press_event", self.on_contour_canvas_click)
+        self.contourcanvas.draw()
+        self.clickpoint=0
+            
+    
 def peak_picker_guassian1d_wholespec(spectrum):
     peaks=[]
     windowedge=3
@@ -322,12 +406,42 @@ def peak_picker_guassian1d_wholespec(spectrum):
                     except:
                         print("couldnt work it out for:",spectrum[0][i])
     return peaks   
+
+
+
+# def peak_picker_guassian(spectrum):
+#     peaks=[]
+#     windowedge=3
+#     noise=find_noise2(spectrum[2])*5   
+#     above_noise_positions=np.where(spectrum[2]>noise) # gives results as coords [y,x]
+#     for i in range(len(above_noise_positions[0])):
+#         if above_noise_positions[0][i]>windowedge+10 and above_noise_positions[1][i]>windowedge+10 and above_noise_positions[0][i]<len(spectrum[1])-windowedge-1 and above_noise_positions[1][i]<len(spectrum[0])-windowedge-1:
+#             if spectrum[1][above_noise_positions[0][i]]>200 and spectrum[1][above_noise_positions[0][i]]<3000 and spectrum[0][above_noise_positions[1][i]]>200 and spectrum[0][above_noise_positions[1][i]]<3000: 
+#                 x,y=above_noise_positions[1][i],above_noise_positions[0][i]
+#                 inten=spectrum[2][y,x]
+#                 if inten==np.max(spectrum[2][y-10:y+10,x-10:x+10]):
+#                     try:
+#                         xpeak=list(fitgaussian(spectrum[0][x-10:x+10],spectrum[2][y,x-10:x+10],[spectrum[2][y,x],spectrum[0][x],0.2]))[1]
+#                         ypeak=list(fitgaussian(spectrum[1][y-10:y+10],spectrum[2][y-10:y+10,x],[spectrum[2][y,x],spectrum[1][y],0.2]))[1]
+#                         peaks.append([xpeak,ypeak,spectrum[2][above_noise_positions[0][i]][above_noise_positions[1][i]]])
+#                     except:
+#                         j=1
+#     #print(len(peaks))
+#     return peaks
+
+
+
+
 def fitgaussian(x,y,po=None):
     params,covar=scipy.optimize.curve_fit(gaussian,x,y,po)
     return params
 def gaussian(x, amp, cent,width):
     return amp *np.exp(-((x-cent)**2)/(2*width**2))
 
+def findnoise(y):
+    y=np.sort(y)[:-20]
+    y=scipy.signal.savgol_filter(y,31,2)
+    return np.mean(y)*5
 
 def find_closest_indices(A, B):
     # Reshape arrays to make broadcasting work
